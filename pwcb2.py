@@ -95,9 +95,10 @@ async def download_email_attachments(imap_server, imap_email, imap_password, dow
         print(f"Ошибка загрузки вложений: {e}")
         return None, None, processed_hashes
 
+
 def detect_pedestrian_traffic(video_path):
-    """Распознает пешеходный трафик в видео."""
-    model = YOLO("yolov8n.pt", device="cuda:0") # Указываем использование GPU
+    """Распознает пешеходный трафик в видео БЕЗ отображения окна и GPU."""
+    model = YOLO("yolov8n.pt") # теперь будет использовать только CPU
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         print(f"Не удалось открыть видео {video_path}")
@@ -111,30 +112,29 @@ def detect_pedestrian_traffic(video_path):
         ret, frame = cap.read()
         if not ret:
             break
-
         if frame_count % frame_skip == 0:
-             frame = cv2.resize(frame, (320, 240))
-             results = model(frame)
+            frame = cv2.resize(frame, (320, 240))  # Уменьшаем размер кадра
+            results = model(frame)
 
-             for r in results:
-                 boxes = r.boxes
-                 for box in boxes:
-                     b = box.xyxy[0]
-                     cls = int(box.cls[0])
-                     confidence = float(box.conf[0])
+            for r in results:
+                boxes = r.boxes
+                for box in boxes:
+                    b = box.xyxy[0]
+                    cls = int(box.cls[0])
+                    confidence = float(box.conf[0])
 
-                     if cls == 0 and confidence > 0.5:
-                         x1, y1, x2, y2 = map(int, b)
-                         center_x = (x1 + x2) // 2
-                         center_y = (y1 + y2) // 2
-                         obj_id = hash((center_x, center_y))
+                    if cls == 0 and confidence > 0.5:
+                        x1, y1, x2, y2 = map(int, b)
+                        center_x = (x1 + x2) // 2
+                        center_y = (y1 + y2) // 2
+                        obj_id = hash((center_x, center_y))
 
-                         if obj_id not in tracked_ids and center_y > line_y:
+                        if obj_id not in tracked_ids and center_y > line_y:
                              tracked_ids.add(obj_id)
         frame_count += 1
     cap.release()
-
     return len(tracked_ids)
+
 
 async def main():
     """Основная функция для получения почты, обработки видео и отправки отчета в Telegram."""
@@ -167,7 +167,7 @@ async def main():
         else:
             print("Новых видеофайлов с ключем не было получено. Ожидание...")
 
-        await asyncio.sleep(300)
+        await asyncio.sleep(30)
 
 if __name__ == '__main__':
     asyncio.run(main())
