@@ -108,7 +108,7 @@ def detect_pedestrian_traffic(video_path):
     line_x = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) / 2)
     frame_skip = 2
     frame_count = 0
-    all_people_count = 0 # объявление переменной для подсчета общего количества людей
+    all_people_count = 0
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -124,17 +124,58 @@ def detect_pedestrian_traffic(video_path):
                     confidence = float(box.conf[0])
 
                     if cls == 0 and confidence > 0.5:
-                        all_people_count +=1 # увеличение счетчика на 1
+                        all_people_count +=1
                         x1, y1, x2, y2 = map(int, b)
                         center_x = (x1 + x2) // 2
                         center_y = (y1 + y2) // 2
                         obj_id = hash((center_x, center_y))
-
+                        print(f"center_x: {center_x}, line_x: {line_x}, obj_id: {obj_id}, center_x > line_x : {center_x > line_x}") # Вывод
                         if  center_x > line_x and obj_id not in all_tracked_ids:
                             all_tracked_ids.add(obj_id)
         frame_count += 1
     cap.release()
-    return len(all_tracked_ids), all_people_count # возвращаем количество уникальных и общее число пешеходов
+    return len(all_tracked_ids), all_people_count
+
+
+# def detect_pedestrian_traffic(video_path):
+#     """Распознает пешеходный трафик в видео."""
+#     model = YOLO("yolov8n.pt")
+#     cap = cv2.VideoCapture(video_path)
+#     if not cap.isOpened():
+#         print(f"Не удалось открыть видео {video_path}")
+#         return None
+
+#     all_tracked_ids = set()
+#     line_x = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) / 2)
+#     frame_skip = 2
+#     frame_count = 0
+#     all_people_count = 0 # объявление переменной для подсчета общего количества людей
+#     while True:
+#         ret, frame = cap.read()
+#         if not ret:
+#             break
+#         if frame_count % frame_skip == 0:
+#             frame = cv2.resize(frame, (320, 240))
+#             results = model(frame)
+#             for r in results:
+#                 boxes = r.boxes
+#                 for box in boxes:
+#                     b = box.xyxy[0]
+#                     cls = int(box.cls[0])
+#                     confidence = float(box.conf[0])
+
+#                     if cls == 0 and confidence > 0.5:
+#                         all_people_count +=1 # увеличение счетчика на 1
+#                         x1, y1, x2, y2 = map(int, b)
+#                         center_x = (x1 + x2) // 2
+#                         center_y = (y1 + y2) // 2
+#                         obj_id = hash((center_x, center_y))
+
+#                         if  center_x > line_x and obj_id not in all_tracked_ids:
+#                             all_tracked_ids.add(obj_id)
+#         frame_count += 1
+#     cap.release()
+#     return len(all_tracked_ids), all_people_count # возвращаем количество уникальных и общее число пешеходов
 
 
 async def main():
