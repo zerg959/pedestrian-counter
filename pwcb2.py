@@ -127,9 +127,9 @@ def detect_pedestrian_traffic(video_path):
                         x1, y1, x2, y2 = map(int, b)
                         center_x = (x1 + x2) // 2
                         center_y = (y1 + y2) // 2
-                        obj_id = hash((x1,y1,x2,y2)) # Упрощаем obj_id для отладки.
-                        print(f"Found Person, obj_id: {obj_id}, coords: {(x1, y1, x2, y2)}, center y: {center_y}, line y: {line_y}") #выводим obj_id и координаты
-                        if obj_id not in tracked_ids: # убираем условие про линию
+                        obj_id = hash((center_x, center_y))
+
+                        if obj_id not in tracked_ids and center_y > line_y:
                             tracked_ids.add(obj_id)
         frame_count += 1
     cap.release()
