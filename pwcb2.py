@@ -106,7 +106,7 @@ def detect_pedestrian_traffic(video_path):
 
     all_tracked_ids = set()
     line_x = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) / 2)
-    frame_skip = 2
+    frame_skip = 50
     frame_count = 0
     all_people_count = 0
     while True:
