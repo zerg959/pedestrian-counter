@@ -105,7 +105,7 @@ def detect_pedestrian_traffic(video_path):
         return None
 
     tracked_ids = set()
-    line_y = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) / 2)
+    line_x = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) / 2)
     frame_skip = 2  # обрабатывать каждый второй кадр
     frame_count = 0
     while True:
@@ -129,7 +129,7 @@ def detect_pedestrian_traffic(video_path):
                         center_y = (y1 + y2) // 2
                         obj_id = hash((center_x, center_y))
 
-                        if obj_id not in tracked_ids and center_y > line_y:
+                        if obj_id not in tracked_ids and center_x > line_x:
                             tracked_ids.add(obj_id)
         frame_count += 1
     cap.release()
