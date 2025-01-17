@@ -11,6 +11,8 @@ import asyncio
 from dotenv import load_dotenv
 import hashlib
 
+total_pedestrians = 0
+
 load_dotenv()
 
 async def send_telegram_message(bot_token, chat_id, message):
@@ -133,7 +135,8 @@ def detect_pedestrian_traffic(video_path):
                              tracked_ids.add(obj_id)
         frame_count += 1
     cap.release()
-    return len(tracked_ids)
+    current_pedestrians = len(tracked_ids)
+    return current_pedestrians
 
 
 async def main():
@@ -150,13 +153,15 @@ async def main():
         os.makedirs(download_dir)
 
     processed_hashes = set()
+    global total_pedestrians
     while True:
         video_path, video_filename, processed_hashes = await download_email_attachments(imap_server, imap_email, imap_password, download_dir, processed_hashes)
 
         if video_path:
             people_count = detect_pedestrian_traffic(video_path)
             if people_count is not None:
-                message = f"Подсчет завершен.\nФайл: {video_filename}\nКоличество пешеходов: {people_count}"
+                total_pedestrians += people_count
+                message = f"Подсчет завершен.\nФайл: {video_filename}\nКоличество пешеходов: {total_pedestrians}"
                 await send_telegram_message(bot_token, chat_id, message)
 
             try:
