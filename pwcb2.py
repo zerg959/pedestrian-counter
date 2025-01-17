@@ -11,8 +11,6 @@ import asyncio
 from dotenv import load_dotenv
 import hashlib
 
-total_pedestrians = 0
-
 load_dotenv()
 
 async def send_telegram_message(bot_token, chat_id, message):
@@ -99,8 +97,8 @@ async def download_email_attachments(imap_server, imap_email, imap_password, dow
 
 
 def detect_pedestrian_traffic(video_path):
-    """Распознает пешеходный трафик в видео БЕЗ отображения окна и GPU."""
-    model = YOLO("yolov8n.pt") # теперь будет использовать только CPU
+    """Распознает пешеходный трафик в видео."""
+    model = YOLO("yolov8n.pt")
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         print(f"Не удалось открыть видео {video_path}")
@@ -129,14 +127,13 @@ def detect_pedestrian_traffic(video_path):
                         x1, y1, x2, y2 = map(int, b)
                         center_x = (x1 + x2) // 2
                         center_y = (y1 + y2) // 2
-                        obj_id = hash((center_x, center_y))
-
-                        if obj_id not in tracked_ids and center_y > line_y:
-                             tracked_ids.add(obj_id)
+                        obj_id = hash((x1,y1,x2,y2)) # Упрощаем obj_id для отладки.
+                        print(f"Found Person, obj_id: {obj_id}, coords: {(x1, y1, x2, y2)}, center y: {center_y}, line y: {line_y}") #выводим obj_id и координаты
+                        if obj_id not in tracked_ids: # убираем условие про линию
+                            tracked_ids.add(obj_id)
         frame_count += 1
     cap.release()
-    current_pedestrians = len(tracked_ids)
-    return current_pedestrians
+    return len(tracked_ids)
 
 
 async def main():
@@ -153,15 +150,13 @@ async def main():
         os.makedirs(download_dir)
 
     processed_hashes = set()
-    global total_pedestrians
     while True:
         video_path, video_filename, processed_hashes = await download_email_attachments(imap_server, imap_email, imap_password, download_dir, processed_hashes)
 
         if video_path:
             people_count = detect_pedestrian_traffic(video_path)
             if people_count is not None:
-                total_pedestrians += people_count
-                message = f"Подсчет завершен.\nФайл: {video_filename}\nКоличество пешеходов: {total_pedestrians}"
+                message = f"Подсчет завершен.\nФайл: {video_filename}\nКоличество пешеходов: {people_count}"
                 await send_telegram_message(bot_token, chat_id, message)
 
             try:
@@ -172,7 +167,7 @@ async def main():
         else:
             print("Новых видеофайлов с ключем не было получено. Ожидание...")
 
-        await asyncio.sleep(30)
+        await asyncio.sleep(300)
 
 if __name__ == '__main__':
     asyncio.run(main())
