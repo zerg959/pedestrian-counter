@@ -104,18 +104,17 @@ def detect_pedestrian_traffic(video_path):
         print(f"Не удалось открыть видео {video_path}")
         return None
 
-    tracked_ids = set()
+    all_tracked_ids = set() # Множество для уникальных пешеходов
     line_x = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) / 2)
-    frame_skip = 2  # обрабатывать каждый второй кадр
+    frame_skip = 2
     frame_count = 0
     while True:
         ret, frame = cap.read()
         if not ret:
             break
         if frame_count % frame_skip == 0:
-            frame = cv2.resize(frame, (320, 240))  # Уменьшаем размер кадра
+            frame = cv2.resize(frame, (320, 240))
             results = model(frame)
-
             for r in results:
                 boxes = r.boxes
                 for box in boxes:
@@ -128,12 +127,11 @@ def detect_pedestrian_traffic(video_path):
                         center_x = (x1 + x2) // 2
                         center_y = (y1 + y2) // 2
                         obj_id = hash((center_x, center_y))
-
-                        if obj_id not in tracked_ids and center_x > line_x:
-                            tracked_ids.add(obj_id)
+                        if  center_x > line_x and obj_id not in all_tracked_ids: #проверяем условие *и* нет ли obj_id в all_tracked_ids
+                            all_tracked_ids.add(obj_id) #добавляем obj_id только, если он уникальный и пересек линию
         frame_count += 1
     cap.release()
-    return len(tracked_ids)
+    return len(all_tracked_ids) #возвращаем общее количество уникальных пешеходов за весь ролик
 
 
 async def main():
@@ -156,7 +154,7 @@ async def main():
         if video_path:
             people_count = detect_pedestrian_traffic(video_path)
             if people_count is not None:
-                message = f"Подсчет завершен.\nФайл: {video_filename}\nКоличество пешеходов: {people_count}"
+                message = f"Подсчет завершен.\nФайл: {video_filename}\nКоличество уникальных пешеходов (за весь отрезок): {people_count}"
                 await send_telegram_message(bot_token, chat_id, message)
 
             try:
