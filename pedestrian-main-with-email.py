@@ -1,42 +1,77 @@
 import cv2
 from ultralytics import YOLO
 import numpy as np
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+from telegram import Bot
+import imaplib
+import email
+import os
+import time
+import re
+import asyncio # Асинхронная библиотека
+from dotenv import load_dotenv
 
+load_dotenv()
 
-def send_email(sender_email, sender_password, receiver_email, subject, message, smtp_server, smtp_port):
-    """
-    Отправляет электронное письмо.
-    """
+def send_telegram_message(bot_token, chat_id, message):
+    """Отправляет сообщение в Telegram."""
     try:
-        msg = MIMEMultipart()
-        msg['From'] = sender_email
-        msg['To'] = receiver_email
-        msg['Subject'] = subject
-        msg.attach(MIMEText(message, 'plain'))
+        bot = Bot(token=bot_token)
+        bot.send_message(chat_id=chat_id, text=message)
+        print("Сообщение в Telegram успешно отправлено!")
+    except Exception as e:
+        print(f"Ошибка отправки сообщения в Telegram: {e}")
 
-        with smtplib.SMTP(smtp_server, smtp_port) as server:
-            server.starttls()
-            server.login(sender_email, sender_password)
-            server.send_message(msg)
+def sanitize_filename(filename):
+    """Очищает имя файла от недопустимых символов."""
+    return re.sub(r'[^\w\.\-]', '_', filename)
 
-        print("Электронное письмо успешно отправлено!")
+async def download_email_attachments(imap_server, imap_email, imap_password, download_dir, video_extension='.mp4'):
+    """Скачивает вложения из почты и возвращает путь к первому видеофайлу и тему письма."""
+    try:
+        mail = imaplib.IMAP4_SSL(imap_server)
+        mail.login(imap_email, imap_password)
+        mail.select("inbox")
+
+        _, data = mail.search(None, "ALL")
+        for num in data[0].split():
+            _, data = mail.fetch(num, "(RFC822)")
+            msg = email.message_from_bytes(data[0][1])
+            subject = msg.get('Subject', 'Без темы')  # Получаем тему письма, если есть
+
+            for part in msg.walk():
+                if part.get_content_maintype() == 'multipart':
+                    continue
+                if part.get('Content-Disposition') is None:
+                    continue
+
+                filename = part.get_filename()
+                if filename and filename.lower().endswith(video_extension):
+                    sanitized_subject = sanitize_filename(subject)
+                    base_name, ext = os.path.splitext(filename)
+                    new_filename = f"{sanitized_subject}{ext}"
+                    file_path = os.path.join(download_dir, new_filename)
+                    with open(file_path, 'wb') as f:
+                        f.write(part.get_payload(decode=True))
+                    print(f"Файл {new_filename} скачан и сохранен в {download_dir}")
+                    mail.close()
+                    mail.logout()
+                    return file_path, new_filename
+        mail.close()
+        mail.logout()
+        return None, None
 
     except Exception as e:
-        print(f"Ошибка отправки электронного письма: {e}")
+        print(f"Ошибка загрузки вложений: {e}")
+        return None, None
 
 
-def detect_pedestrian_traffic(video_path, sender_email, sender_password, receiver_email, smtp_server, smtp_port):
-    """
-    Распознает пешеходный трафик в видео и отправляет отчет по завершении.
-    """
+def detect_pedestrian_traffic(video_path):
+    """Распознает пешеходный трафик в видео."""
     model = YOLO("yolov8n.pt")
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         print(f"Не удалось открыть видео {video_path}")
-        return
+        return None
 
     tracked_ids = set()
     line_y = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) / 2)
@@ -44,7 +79,6 @@ def detect_pedestrian_traffic(video_path, sender_email, sender_password, receive
     while True:
         ret, frame = cap.read()
         if not ret:
-            print("Проблемы с получением кадра")
             break
 
         results = model(frame)
@@ -63,9 +97,9 @@ def detect_pedestrian_traffic(video_path, sender_email, sender_password, receive
                     obj_id = hash((center_x, center_y))
 
                     if obj_id not in tracked_ids and center_y > line_y:
-                        tracked_ids.add(obj_id)
-                        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                        cv2.putText(frame, f"Person", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                         tracked_ids.add(obj_id)
+                         cv2.rectangle(frame, (x1,y1), (x2,y2), (0,255,0), 2)
+                         cv2.putText(frame, f"Person", (x1,y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5,(0,255,0), 2)
 
         cv2.line(frame, (0, line_y), (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), line_y), (0, 0, 255), 2)
         cv2.putText(frame, f"People Count: {len(tracked_ids)}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
@@ -76,18 +110,39 @@ def detect_pedestrian_traffic(video_path, sender_email, sender_password, receive
 
     cap.release()
     cv2.destroyAllWindows()
+    return len(tracked_ids)
 
-    message = f"Подсчет завершен. Общее количество пешеходов: {len(tracked_ids)}"
-    send_email(sender_email, sender_password, receiver_email, "Отчет о пешеходном трафике", message, smtp_server, smtp_port)
-    print(f"Общее количество людей: {len(tracked_ids)}")
+async def main():
+    """Основная функция для получения почты, обработки видео и отправки отчета в Telegram."""
+
+    imap_server = os.getenv("IMAP_SERVER")
+    imap_email = os.getenv("IMAP_EMAIL")
+    imap_password = os.getenv("IMAP_PASSWORD")
+    download_dir = os.getenv("DOWNLOAD_DIR")
+    bot_token = os.getenv("BOT_TOKEN")
+    chat_id = os.getenv("CHAT_ID")
+
+    if not os.path.exists(download_dir):
+        os.makedirs(download_dir)
 
 
-if __name__ == "__main__":
-    video_path = "http://YOUR_IP:8080/video"  # Замените на ваш URL IP камеры
-    sender_email = "your_email@gmail.com"  # Ваш электронный адрес
-    sender_password = "your_password"  # Пароль от вашего электронного адреса
-    receiver_email = "receiver_email@example.com"  # Адрес получателя
-    smtp_server = "smtp.gmail.com"  # SMTP-сервер Gmail
-    smtp_port = 587  # порт SMTP Gmail
+    video_path, video_filename = await download_email_attachments(imap_server, imap_email, imap_password, download_dir)
 
-    detect_pedestrian_traffic(video_path, sender_email, sender_password, receiver_email, smtp_server, smtp_port)
+    if video_path:
+        people_count = detect_pedestrian_traffic(video_path)
+        if people_count is not None:
+            message = f"Подсчет завершен.\n\
+                       Файл: {video_filename}\n\
+                       Количество пешеходов: {people_count}"
+            send_telegram_message(bot_token, chat_id, message)
+
+        try:
+            os.remove(video_path)
+            print(f"Файл {video_path} удален")
+        except Exception as e:
+            print(f"Ошибка удаления файла: {e}")
+    else:
+        print("Видео файл не был получен.")
+
+if __name__ == '__main__':
+    asyncio.run(main())
