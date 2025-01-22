@@ -1,6 +1,8 @@
-flake8
 opencv_python
 ultralytics
 python-telegram-bot
 python_dotenv
 lap
+ffprobe
+vidgear
+numpy
