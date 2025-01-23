@@ -69,9 +69,8 @@ async def main():
     """Основная функция для получения почты, обработки видео и отправки отчета в Telegram."""
     bot_token = os.getenv("BOT_TOKEN")
     chat_id = os.getenv("CHAT_ID")
-    video_source = "rtsp://admin:admin@192.168.1.34:554/Streaming/Channels/101" # rstp или http URL адрес, либо путь к видеофайлу
-    #video_source = 0 # 0 - это индекс вебкамеры по умолчанию.
-    #video_source = "video.mp4" # Путь к локальному видеофайлу.
+    video_source = os.getenv("VIDEO_SOURCE")  # Получаем URL потока из .env
+
 
     people_count, all_people_count = detect_pedestrian_traffic(video_source)
     if people_count is not None:
