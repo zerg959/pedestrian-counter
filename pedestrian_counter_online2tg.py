@@ -71,12 +71,15 @@ async def main():
     chat_id = os.getenv("CHAT_ID")
     video_source = os.getenv("VIDEO_SOURCE")  # Получаем URL потока из .env
 
+    result = detect_pedestrian_traffic(video_source) # вызываем функцию и сохраняем результат
 
-    people_count, all_people_count = detect_pedestrian_traffic(video_source)
-    if people_count is not None:
-       message = f"Подсчет завершен.\nКоличество уникальных пешеходов (за весь отрезок): {people_count}, Общее количество обнаруженных пешеходов: {all_people_count}"
-       print(f"Количество уникальных пешеходов (за весь отрезок): {people_count}, Общее количество обнаруженных пешеходов: {all_people_count}")
-       await send_telegram_message(bot_token, chat_id, message)
+    if result is not None:  # Проверяем, не является ли результат None
+        people_count, all_people_count = result  # распаковываем результат, если он не None
+        message = f"Подсчет завершен.\nКоличество уникальных пешеходов (за весь отрезок): {people_count}, Общее количество обнаруженных пешеходов: {all_people_count}"
+        print(f"Количество уникальных пешеходов (за весь отрезок): {people_count}, Общее количество обнаруженных пешеходов: {all_people_count}")
+        await send_telegram_message(bot_token, chat_id, message)
+    else:
+        print("Не удалось получить данные о пешеходах.")
 
 
 if __name__ == '__main__':
